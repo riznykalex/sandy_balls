@@ -3,21 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <title>Піщані кульки</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
     body {
       background-color: #111;
       color: white;
       font-family: Arial, sans-serif;
       text-align: center;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
     }
     canvas {
       background-color: #222;
       display: block;
-      margin: 20px auto;
       border: 2px solid #fff;
+      touch-action: none; /* щоб браузер не скролив під час свайпів */
     }
     #menu {
-      margin-top: 30px;
+      margin: 20px 0;
     }
     button {
       margin: 10px;
@@ -35,19 +43,81 @@
     <button onclick="startGame(5)">Середній (5 кольорів)</button>
     <button onclick="startGame(6)">Складний (6 кольорів)</button>
   </div>
-  <canvas id="gameCanvas" width="400" height="600" style="display:none;"></canvas>
+  <canvas id="gameCanvas" style="display:none;"></canvas>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
+    // внутрішній розмір (логіка гри тут)
+    const GAME_WIDTH = 400;
+    const GAME_HEIGHT = 600;
+    canvas.width = GAME_WIDTH;
+    canvas.height = GAME_HEIGHT;
+
+    // масштабування канваса
+    function resizeCanvas() {
+      const scale = Math.min(
+        window.innerWidth / GAME_WIDTH,
+        (window.innerHeight - 100) / GAME_HEIGHT // трішки залишаємо місця для заголовку
+      );
+      canvas.style.width = GAME_WIDTH * scale + "px";
+      canvas.style.height = GAME_HEIGHT * scale + "px";
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
     const gridSize = 8;
-    const columns = canvas.width / gridSize;
-    const rows = canvas.height / gridSize;
+    const columns = GAME_WIDTH / gridSize;
+    const rows = GAME_HEIGHT / gridSize;
 
     let keys = {};
     document.addEventListener("keydown", e => keys[e.key] = true);
     document.addEventListener("keyup", e => keys[e.key] = false);
+
+    // 🟢 Управління мишкою/тачем
+    let control = { left: false, right: false, down: false };
+
+    function startPointer(x, y) {
+      if (!ball || !ball.active || gameOver) return;
+      if (x < ball.x - ball.radius) {
+        control.left = true;
+      } else if (x > ball.x + ball.radius) {
+        control.right = true;
+      } else if (y > ball.y) {
+        control.down = true;
+      }
+    }
+    function endPointer() {
+      control.left = false;
+      control.right = false;
+      control.down = false;
+    }
+
+    function getRelativeCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = GAME_WIDTH / rect.width;
+      const scaleY = GAME_HEIGHT / rect.height;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    canvas.addEventListener("mousedown", e => {
+      const { x, y } = getRelativeCoords(e.clientX, e.clientY);
+      startPointer(x, y);
+    });
+    canvas.addEventListener("mouseup", endPointer);
+    canvas.addEventListener("mouseleave", endPointer);
+
+    canvas.addEventListener("touchstart", e => {
+      const t = e.touches[0];
+      const { x, y } = getRelativeCoords(t.clientX, t.clientY);
+      startPointer(x, y);
+    });
+    canvas.addEventListener("touchend", endPointer);
+    canvas.addEventListener("touchcancel", endPointer);
 
     let score = 0;
     let gameOver = false;
@@ -67,7 +137,8 @@
       activeColors = colorSets[level];
       document.getElementById("menu").style.display = "none";
       canvas.style.display = "block";
-      ball = new Ball(200, 0, getRandomColor(), 50);
+      resizeCanvas();
+      ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
       gameLoop();
     }
 
@@ -88,9 +159,23 @@
 
       update(grid) {
         if (!this.active || gameOver) return;
-        this.y += keys["ArrowDown"] ? this.speed * 3 : this.speed;
-        if (keys["ArrowLeft"] && this.x - this.radius > 0) this.x -= 5;
-        if (keys["ArrowRight"] && this.x + this.radius < canvas.width) this.x += 5;
+
+        // падіння
+        if (keys["ArrowDown"] || control.down) {
+          this.y += this.speed * 3;
+        } else {
+          this.y += this.speed;
+        }
+
+        // вліво
+        if ((keys["ArrowLeft"] || control.left) && this.x - this.radius > 0) {
+          this.x -= 4;
+        }
+        // вправо
+        if ((keys["ArrowRight"] || control.right) && this.x + this.radius < GAME_WIDTH) {
+          this.x += 4;
+        }
+
         if (this.hasHit(grid)) {
           this.active = false;
           prepareParticles(this);
@@ -108,7 +193,7 @@
 
       hasHit(grid) {
         const bottomY = this.y + this.radius;
-        if (bottomY >= canvas.height) return true;
+        if (bottomY >= GAME_HEIGHT) return true;
         const col = Math.floor(this.x / gridSize);
         const row = Math.floor(bottomY / gridSize);
         return grid[row]?.[col] !== null;
@@ -185,7 +270,7 @@
         }
       } else if (!ball.active && !gameOver) {
         if (canSpawnBall()) {
-          ball = new Ball(200, 0, getRandomColor(), 50);
+          ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
         } else {
           gameOver = true;
         }
@@ -193,7 +278,7 @@
     }
 
     function canSpawnBall() {
-      const col = Math.floor(canvas.width / 2 / gridSize);
+      const col = Math.floor(GAME_WIDTH / 2 / gridSize);
       const row = 0;
       return grid[row][col] === null;
     }
@@ -229,7 +314,6 @@
         }
       }
 
-      // 🆕 осадка після видалення
       applyGravity();
     }
 
@@ -279,6 +363,7 @@
     function drawScore() {
       ctx.fillStyle = "white";
       ctx.font = "20px Arial";
+      ctx.textAlign = "left";
       ctx.fillText("Рахунок: " + score, 10, 30);
     }
 
@@ -287,12 +372,12 @@
         ctx.fillStyle = "white";
         ctx.font = "40px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("Гра завершена", canvas.width / 2, canvas.height / 2);
+        ctx.fillText("Гра завершена", GAME_WIDTH / 2, GAME_HEIGHT / 2);
       }
     }
 
     function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       ball.update(grid);
       ball.draw(ctx);
       releasePendingParticles();
@@ -306,5 +391,3 @@
   </script>
 </body>
 </html>
-
-
