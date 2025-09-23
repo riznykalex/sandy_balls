@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Кулькова гра</title>
+  <style>
+    body {
+      background-color: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    canvas {
+      background-color: #222;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #fff;
+    }
+    #menu {
+      margin-top: 30px;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Кулькова гра</h1>
+  <div id="menu">
+    <p>Оберіть рівень складності:</p>
+    <button onclick="startGame(4)">Легкий (4 кольори)</button>
+    <button onclick="startGame(5)">Середній (5 кольорів)</button>
+    <button onclick="startGame(6)">Складний (6 кольорів)</button>
+  </div>
+  <canvas id="gameCanvas" width="400" height="600" style="display:none;"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const gridSize = 8;
+    const columns = canvas.width / gridSize;
+    const rows = canvas.height / gridSize;
+
+    let keys = {};
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    let score = 0;
+    let gameOver = false;
+    let particles = [];
+    let grid = Array.from({ length: rows }, () => Array(columns).fill(null));
+    let pendingParticles = [];
+    let activeColors = [];
+    let ball;
+
+    const colorSets = {
+      4: ["red", "blue", "yellow", "green"],
+      5: ["orange", "purple", "cyan", "lime", "pink"],
+      6: ["teal", "magenta", "gold", "navy", "salmon", "turquoise"]
+    };
+
+    function startGame(level) {
+      activeColors = colorSets[level];
+      document.getElementById("menu").style.display = "none";
+      canvas.style.display = "block";
+      ball = new Ball(200, 0, getRandomColor(), 50);
+      gameLoop();
+    }
+
+    function getRandomColor() {
+      return activeColors[Math.floor(Math.random() * activeColors.length)];
+    }
+
+    class Ball {
+      constructor(x, y, color, volume) {
+        this.x = x;
+        this.y = y;
+        this.radius = 16;
+        this.color = color;
+        this.volume = volume;
+        this.speed = 2;
+        this.active = true;
+      }
+
+      update(grid) {
+        if (!this.active || gameOver) return;
+        this.y += keys["ArrowDown"] ? this.speed * 3 : this.speed;
+        if (keys["ArrowLeft"] && this.x - this.radius > 0) this.x -= 5;
+        if (keys["ArrowRight"] && this.x + this.radius < canvas.width) this.x += 5;
+        if (this.hasHit(grid)) {
+          this.active = false;
+          prepareParticles(this);
+        }
+      }
+
+      draw(ctx) {
+        if (!this.active || gameOver) return;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.closePath();
+      }
+
+      hasHit(grid) {
+        const bottomY = this.y + this.radius;
+        if (bottomY >= canvas.height) return true;
+        const col = Math.floor(this.x / gridSize);
+        const row = Math.floor(bottomY / gridSize);
+        return grid[row]?.[col] !== null;
+      }
+    }
+
+    class Particle {
+      constructor(col, row, color) {
+        this.col = col;
+        this.row = row;
+        this.color = color;
+      }
+
+      update(grid) {
+        if (this.row < rows - 1) {
+          if (grid[this.row + 1][this.col] === null) {
+            grid[this.row][this.col] = null;
+            this.row++;
+            grid[this.row][this.col] = this.color;
+            return;
+          }
+          if (this.col > 0 && grid[this.row + 1][this.col - 1] === null) {
+            grid[this.row][this.col] = null;
+            this.row++;
+            this.col--;
+            grid[this.row][this.col] = this.color;
+            return;
+          }
+          if (this.col < columns - 1 && grid[this.row + 1][this.col + 1] === null) {
+            grid[this.row][this.col] = null;
+            this.row++;
+            this.col++;
+            grid[this.row][this.col] = this.color;
+            return;
+          }
+        }
+      }
+
+      draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(
+          this.col * gridSize + gridSize / 2,
+          this.row * gridSize + gridSize / 2,
+          gridSize / 2,
+          0,
+          Math.PI * 2
+        );
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+
+    function prepareParticles(ball) {
+      let centerCol = Math.floor(ball.x / gridSize);
+      for (let i = 0; i < ball.volume; i++) {
+        let offset = Math.floor(Math.random() * 10) - 5;
+        let col = Math.max(0, Math.min(columns - 1, centerCol + offset));
+        pendingParticles.push({ col, color: ball.color });
+      }
+    }
+
+    function releasePendingParticles() {
+      if (pendingParticles.length > 0) {
+        let batch = pendingParticles.splice(0, 2);
+        for (let item of batch) {
+          for (let row = rows - 1; row >= 0; row--) {
+            if (grid[row][item.col] === null) {
+              grid[row][item.col] = item.color;
+              particles.push(new Particle(item.col, row, item.color));
+              break;
+            }
+          }
+        }
+      } else if (!ball.active && !gameOver) {
+        if (canSpawnBall()) {
+          ball = new Ball(200, 0, getRandomColor(), 50);
+        } else {
+          gameOver = true;
+        }
+      }
+    }
+
+    function canSpawnBall() {
+      const col = Math.floor(canvas.width / 2 / gridSize);
+      const row = 0;
+      return grid[row][col] === null;
+    }
+
+    function updateParticles() {
+      for (let p of particles) {
+        p.update(grid);
+      }
+    }
+
+    function drawParticles() {
+      for (let p of particles) {
+        p.draw(ctx);
+      }
+    }
+
+    function checkConnectedGroups() {
+      if (pendingParticles.length > 0) return;
+
+      let visited = Array.from({ length: rows }, () => Array(columns).fill(false));
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+          let color = grid[row][col];
+          if (color === null || visited[row][col]) continue;
+          let group = findConnectedGroup(row, col, color, visited);
+          if (touchesBothEdges(group)) {
+            for (let [r, c] of group) grid[r][c] = null;
+            particles = particles.filter(
+              p => !group.some(([r, c]) => p.row === r && p.col === c)
+            );
+            score += group.length * 10;
+          }
+        }
+      }
+
+      // 🆕 осадка після видалення
+      applyGravity();
+    }
+
+    function applyGravity() {
+      for (let col = 0; col < columns; col++) {
+        let writeRow = rows - 1;
+        for (let row = rows - 1; row >= 0; row--) {
+          if (grid[row][col] !== null) {
+            let color = grid[row][col];
+            grid[row][col] = null;
+            grid[writeRow][col] = color;
+
+            let p = particles.find(
+              pp => pp.col === col && pp.row === row && pp.color === color
+            );
+            if (p) p.row = writeRow;
+
+            writeRow--;
+          }
+        }
+      }
+    }
+
+    function findConnectedGroup(row, col, color, visited) {
+      let stack = [[row, col]];
+      let group = [];
+      while (stack.length > 0) {
+        let [r, c] = stack.pop();
+        if (r < 0 || r >= rows || c < 0 || c >= columns) continue;
+        if (visited[r][c] || grid[r][c] !== color) continue;
+        visited[r][c] = true;
+        group.push([r, c]);
+        stack.push([r+1, c], [r-1, c], [r, c+1], [r, c-1]);
+      }
+      return group;
+    }
+
+    function touchesBothEdges(group) {
+      let left = false, right = false;
+      for (let [r, c] of group) {
+        if (c === 0) left = true;
+        if (c === columns - 1) right = true;
+      }
+      return left && right;
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "white";
+      ctx.font = "20px Arial";
+      ctx.fillText("Рахунок: " + score, 10, 30);
+    }
+
+    function drawGameOver() {
+      if (gameOver) {
+        ctx.fillStyle = "white";
+        ctx.font = "40px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Гра завершена", canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ball.update(grid);
+      ball.draw(ctx);
+      releasePendingParticles();
+      updateParticles();
+      checkConnectedGroups();
+      drawParticles();
+      drawScore();
+      drawGameOver();
+      if (!gameOver) requestAnimationFrame(gameLoop);
+    }
+  </script>
+</body>
+</html>
