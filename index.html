@@ -4,390 +4,432 @@
   <meta charset="UTF-8">
   <title>Піщані кульки</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      background-color: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
       margin: 0;
+      font-family: Arial, sans-serif;
+      color: white;
+      text-align: center;
+      background: radial-gradient(circle at top, #222 0%, #000 100%);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    button {
+      margin: 10px;
+      padding: 12px 20px;
+      font-size: 18px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #555;
+      color: white;
+    }
+
+    button:active {
+      background-color: #888;
+    }
+
+    #startScreen {
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+
+    #gameScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
       justify-content: flex-start;
-      height: 100vh;
+      height: 100%;
     }
+
+    #canvasContainer {
+      position: relative;
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      max-width: 500px;
+    }
+
     canvas {
-      background-color: #222;
-      display: block;
-      border: 2px solid #fff;
-      touch-action: none; /* щоб браузер не скролив під час свайпів */
+      border: 1px solid rgba(255, 255, 255, 0.2);
+
+      touch-action: none;
+      background-color: transparent;
     }
-    #menu {
-      margin: 20px 0;
+
+    #controls {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
     }
-    button {
-      margin: 10px;
-      padding: 10px 20px;
-      font-size: 18px;
-      cursor: pointer;
+
+    .control-btn {
+      font-size: 24px;
+      padding: 12px 16px;
+      background-color: rgba(255, 255, 255, 0.2);
+      border: 1px solid white;
+      border-radius: 8px;
+      color: white;
+    }
+
+    .control-btn:active {
+      background-color: rgba(255, 255, 255, 0.4);
     }
   </style>
 </head>
 <body>
-  <h1>Піщані кульки</h1>
-  <div id="menu">
+
+  <!-- 🎮 Початковий екран -->
+  <div id="startScreen">
+    <h1>Піщані кульки</h1>
     <p>Оберіть рівень складності:</p>
     <button onclick="startGame(4)">Легкий (4 кольори)</button>
     <button onclick="startGame(5)">Середній (5 кольорів)</button>
     <button onclick="startGame(6)">Складний (6 кольорів)</button>
   </div>
-  <canvas id="gameCanvas" style="display:none;"></canvas>
 
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+  <!-- 🕹️ Ігровий екран -->
+  <div id="gameScreen">
+    <div id="canvasContainer">
+      <canvas id="gameCanvas"></canvas>
+      <div id="controls">
+        <button class="control-btn" id="btnLeft">◀️</button>
+        <button class="control-btn" id="btnDown">⬇️</button>
+        <button class="control-btn" id="btnRight">▶️</button>
+      </div>
+    </div>
+  </div>
+  
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
 
-    // внутрішній розмір (логіка гри тут)
-    const GAME_WIDTH = 400;
-    const GAME_HEIGHT = 600;
-    canvas.width = GAME_WIDTH;
-    canvas.height = GAME_HEIGHT;
+  const GAME_WIDTH = 400;
+  const GAME_HEIGHT = 600;
+  canvas.width = GAME_WIDTH;
+  canvas.height = GAME_HEIGHT;
 
-    // масштабування канваса
-    function resizeCanvas() {
-      const scale = Math.min(
-        window.innerWidth / GAME_WIDTH,
-        (window.innerHeight - 100) / GAME_HEIGHT // трішки залишаємо місця для заголовку
-      );
-      canvas.style.width = GAME_WIDTH * scale + "px";
-      canvas.style.height = GAME_HEIGHT * scale + "px";
+  function resizeCanvas() {
+    const scale = Math.min(
+      window.innerWidth / GAME_WIDTH,
+      (window.innerHeight - 100) / GAME_HEIGHT
+    );
+    canvas.style.width = GAME_WIDTH * scale + "px";
+    canvas.style.height = GAME_HEIGHT * scale + "px";
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  const gridSize = 8;
+  const columns = GAME_WIDTH / gridSize;
+  const rows = GAME_HEIGHT / gridSize;
+
+  let keys = {};
+  document.addEventListener("keydown", e => keys[e.key] = true);
+  document.addEventListener("keyup", e => keys[e.key] = false);
+
+  let control = { left: false, right: false, down: false };
+
+  // 🎮 Віртуальні кнопки
+  const btnLeft = document.getElementById("btnLeft");
+  const btnRight = document.getElementById("btnRight");
+  const btnDown = document.getElementById("btnDown");
+
+  function setControl(btn, dir) {
+    btn.addEventListener("touchstart", () => control[dir] = true);
+    btn.addEventListener("touchend", () => control[dir] = false);
+    btn.addEventListener("mousedown", () => control[dir] = true);
+    btn.addEventListener("mouseup", () => control[dir] = false);
+  }
+
+  setControl(btnLeft, "left");
+  setControl(btnRight, "right");
+  setControl(btnDown, "down");
+
+  // 🧭 Свайпи
+  let touchStartX = null;
+  let touchStartY = null;
+
+  canvas.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  });
+
+  canvas.addEventListener("touchend", e => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 30) control.right = true;
+      else if (dx < -30) control.left = true;
+    } else {
+      if (dy > 30) control.down = true;
     }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
 
-    const gridSize = 8;
-    const columns = GAME_WIDTH / gridSize;
-    const rows = GAME_HEIGHT / gridSize;
+    setTimeout(() => {
+      control.left = control.right = control.down = false;
+    }, 150);
+  });
 
-    let keys = {};
-    document.addEventListener("keydown", e => keys[e.key] = true);
-    document.addEventListener("keyup", e => keys[e.key] = false);
+  // 🕹️ Перехід між екранами
+  function startGame(level) {
+    document.getElementById("startScreen").style.display = "none";
+    document.getElementById("gameScreen").style.display = "flex";
+    activeColors = colorSets[level];
+    ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
+    gameLoop();
+  }
 
-    // 🟢 Управління мишкою/тачем
-    let control = { left: false, right: false, down: false };
+  const colorSets = {
+    4: ["red", "blue", "yellow", "green"],
+    5: ["orange", "purple", "cyan", "lime", "pink"],
+    6: ["teal", "magenta", "gold", "navy", "salmon", "turquoise"]
+  };
 
-    function startPointer(x, y) {
-      if (!ball || !ball.active || gameOver) return;
-      if (x < ball.x - ball.radius) {
-        control.left = true;
-      } else if (x > ball.x + ball.radius) {
-        control.right = true;
-      } else if (y > ball.y) {
-        control.down = true;
+  let score = 0;
+  let gameOver = false;
+  let particles = [];
+  let grid = Array.from({ length: rows }, () => Array(columns).fill(null));
+  let pendingParticles = [];
+  let activeColors = [];
+  let ball;
+
+  function getRandomColor() {
+    return activeColors[Math.floor(Math.random() * activeColors.length)];
+  }
+
+  class Ball {
+    constructor(x, y, color, volume) {
+      this.x = x;
+      this.y = y;
+      this.radius = 16;
+      this.color = color;
+      this.volume = volume;
+      this.speed = 2;
+      this.active = true;
+    }
+
+    update(grid) {
+      if (!this.active || gameOver) return;
+      if (keys["ArrowDown"] || control.down) this.y += this.speed * 3;
+      else this.y += this.speed;
+      if ((keys["ArrowLeft"] || control.left) && this.x - this.radius > 0) this.x -= 4;
+      if ((keys["ArrowRight"] || control.right) && this.x + this.radius < GAME_WIDTH) this.x += 4;
+      if (this.hasHit(grid)) {
+        this.active = false;
+        prepareParticles(this);
       }
     }
-    function endPointer() {
-      control.left = false;
-      control.right = false;
-      control.down = false;
+
+    draw(ctx) {
+      if (!this.active || gameOver) return;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(this.x - this.radius * 0.4, this.y - this.radius * 0.4, this.radius * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.fill();
+      ctx.closePath();
     }
 
-    function getRelativeCoords(clientX, clientY) {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = GAME_WIDTH / rect.width;
-      const scaleY = GAME_HEIGHT / rect.height;
-      return {
-        x: (clientX - rect.left) * scaleX,
-        y: (clientY - rect.top) * scaleY
-      };
+    hasHit(grid) {
+      const bottomY = this.y + this.radius;
+      if (bottomY >= GAME_HEIGHT) return true;
+      const col = Math.floor(this.x / gridSize);
+      const row = Math.floor(bottomY / gridSize);
+      return grid[row]?.[col] !== null;
+    }
+  }
+
+  class Particle {
+    constructor(col, row, color) {
+      this.col = col;
+      this.row = row;
+      this.color = color;
     }
 
-    canvas.addEventListener("mousedown", e => {
-      const { x, y } = getRelativeCoords(e.clientX, e.clientY);
-      startPointer(x, y);
-    });
-    canvas.addEventListener("mouseup", endPointer);
-    canvas.addEventListener("mouseleave", endPointer);
-
-    canvas.addEventListener("touchstart", e => {
-      const t = e.touches[0];
-      const { x, y } = getRelativeCoords(t.clientX, t.clientY);
-      startPointer(x, y);
-    });
-    canvas.addEventListener("touchend", endPointer);
-    canvas.addEventListener("touchcancel", endPointer);
-
-    let score = 0;
-    let gameOver = false;
-    let particles = [];
-    let grid = Array.from({ length: rows }, () => Array(columns).fill(null));
-    let pendingParticles = [];
-    let activeColors = [];
-    let ball;
-
-    const colorSets = {
-      4: ["red", "blue", "yellow", "green"],
-      5: ["orange", "purple", "cyan", "lime", "pink"],
-      6: ["teal", "magenta", "gold", "navy", "salmon", "turquoise"]
-    };
-
-    function startGame(level) {
-      activeColors = colorSets[level];
-      document.getElementById("menu").style.display = "none";
-      canvas.style.display = "block";
-      resizeCanvas();
-      ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
-      gameLoop();
-    }
-
-    function getRandomColor() {
-      return activeColors[Math.floor(Math.random() * activeColors.length)];
-    }
-
-    class Ball {
-      constructor(x, y, color, volume) {
-        this.x = x;
-        this.y = y;
-        this.radius = 16;
-        this.color = color;
-        this.volume = volume;
-        this.speed = 2;
-        this.active = true;
-      }
-
-      update(grid) {
-        if (!this.active || gameOver) return;
-
-        // падіння
-        if (keys["ArrowDown"] || control.down) {
-          this.y += this.speed * 3;
-        } else {
-          this.y += this.speed;
+    update(grid) {
+      if (this.row < rows - 1) {
+        if (grid[this.row + 1][this.col] === null) {
+          grid[this.row][this.col] = null;
+          this.row++;
+          grid[this.row][this.col] = this.color;
+          return;
         }
-
-        // вліво
-        if ((keys["ArrowLeft"] || control.left) && this.x - this.radius > 0) {
-          this.x -= 4;
+        if (this.col > 0 && grid[this.row + 1][this.col - 1] === null) {
+          grid[this.row][this.col] = null;
+          this.row++;
+          this.col--;
+          grid[this.row][this.col] = this.color;
+          return;
         }
-        // вправо
-        if ((keys["ArrowRight"] || control.right) && this.x + this.radius < GAME_WIDTH) {
-          this.x += 4;
-        }
-
-        if (this.hasHit(grid)) {
-          this.active = false;
-          prepareParticles(this);
-        }
-      }
-
-      draw(ctx) {
-        if (!this.active || gameOver) return;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.closePath();
-      }
-
-      hasHit(grid) {
-        const bottomY = this.y + this.radius;
-        if (bottomY >= GAME_HEIGHT) return true;
-        const col = Math.floor(this.x / gridSize);
-        const row = Math.floor(bottomY / gridSize);
-        return grid[row]?.[col] !== null;
-      }
-    }
-
-    class Particle {
-      constructor(col, row, color) {
-        this.col = col;
-        this.row = row;
-        this.color = color;
-      }
-
-      update(grid) {
-        if (this.row < rows - 1) {
-          if (grid[this.row + 1][this.col] === null) {
-            grid[this.row][this.col] = null;
-            this.row++;
-            grid[this.row][this.col] = this.color;
-            return;
-          }
-          if (this.col > 0 && grid[this.row + 1][this.col - 1] === null) {
-            grid[this.row][this.col] = null;
-            this.row++;
-            this.col--;
-            grid[this.row][this.col] = this.color;
-            return;
-          }
-          if (this.col < columns - 1 && grid[this.row + 1][this.col + 1] === null) {
-            grid[this.row][this.col] = null;
-            this.row++;
-            this.col++;
-            grid[this.row][this.col] = this.color;
-            return;
-          }
-        }
-      }
-
-      draw(ctx) {
-        ctx.beginPath();
-        ctx.arc(
-          this.col * gridSize + gridSize / 2,
-          this.row * gridSize + gridSize / 2,
-          gridSize / 2,
-          0,
-          Math.PI * 2
-        );
-        ctx.fillStyle = this.color;
-        ctx.fill();
-        ctx.closePath();
-      }
-    }
-
-    function prepareParticles(ball) {
-      let centerCol = Math.floor(ball.x / gridSize);
-      for (let i = 0; i < ball.volume; i++) {
-        let offset = Math.floor(Math.random() * 10) - 5;
-        let col = Math.max(0, Math.min(columns - 1, centerCol + offset));
-        pendingParticles.push({ col, color: ball.color });
-      }
-    }
-
-    function releasePendingParticles() {
-      if (pendingParticles.length > 0) {
-        let batch = pendingParticles.splice(0, 2);
-        for (let item of batch) {
-          for (let row = rows - 1; row >= 0; row--) {
-            if (grid[row][item.col] === null) {
-              grid[row][item.col] = item.color;
-              particles.push(new Particle(item.col, row, item.color));
-              break;
-            }
-          }
-        }
-      } else if (!ball.active && !gameOver) {
-        if (canSpawnBall()) {
-          ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
-        } else {
-          gameOver = true;
+        if (this.col < columns - 1 && grid[this.row + 1][this.col + 1] === null) {
+          grid[this.row][this.col] = null;
+          this.row++;
+          this.col++;
+          grid[this.row][this.col] = this.color;
+          return;
         }
       }
     }
 
-    function canSpawnBall() {
-      const col = Math.floor(GAME_WIDTH / 2 / gridSize);
-      const row = 0;
-      return grid[row][col] === null;
+    draw(ctx) {
+      const cx = this.col * gridSize + gridSize / 2;
+      const cy = this.row * gridSize + gridSize / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, gridSize / 2, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx - gridSize * 0.2, cy - gridSize * 0.2, gridSize * 0.2, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.fill();
+      ctx.closePath();
     }
+  }
 
-    function updateParticles() {
-      for (let p of particles) {
-        p.update(grid);
-      }
+  function prepareParticles(ball) {
+    const centerCol = Math.floor(ball.x / gridSize);
+    for (let i = 0; i < ball.volume; i++) {
+      let offset = Math.floor(Math.random() * 10) - 5;
+      let col = Math.max(0, Math.min(columns - 1, centerCol + offset));
+      pendingParticles.push({ col, color: ball.color });
     }
+  }
 
-    function drawParticles() {
-      for (let p of particles) {
-        p.draw(ctx);
-      }
-    }
-
-    function checkConnectedGroups() {
-      if (pendingParticles.length > 0) return;
-
-      let visited = Array.from({ length: rows }, () => Array(columns).fill(false));
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < columns; col++) {
-          let color = grid[row][col];
-          if (color === null || visited[row][col]) continue;
-          let group = findConnectedGroup(row, col, color, visited);
-          if (touchesBothEdges(group)) {
-            for (let [r, c] of group) grid[r][c] = null;
-            particles = particles.filter(
-              p => !group.some(([r, c]) => p.row === r && p.col === c)
-            );
-            score += group.length * 10;
-          }
-        }
-      }
-
-      applyGravity();
-    }
-
-    function applyGravity() {
-      for (let col = 0; col < columns; col++) {
-        let writeRow = rows - 1;
+  function releasePendingParticles() {
+    if (pendingParticles.length > 0) {
+      let batch = pendingParticles.splice(0, 2);
+      for (let item of batch) {
         for (let row = rows - 1; row >= 0; row--) {
-          if (grid[row][col] !== null) {
-            let color = grid[row][col];
-            grid[row][col] = null;
-            grid[writeRow][col] = color;
-
-            let p = particles.find(
-              pp => pp.col === col && pp.row === row && pp.color === color
-            );
-            if (p) p.row = writeRow;
-
-            writeRow--;
+          if (grid[row][item.col] === null) {
+            grid[row][item.col] = item.color;
+            particles.push(new Particle(item.col, row, item.color));
+            break;
           }
         }
       }
+    } else if (!ball.active && !gameOver) {
+      if (canSpawnBall()) ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
+      else gameOver = true;
     }
+  }
 
-    function findConnectedGroup(row, col, color, visited) {
-      let stack = [[row, col]];
-      let group = [];
-      while (stack.length > 0) {
-        let [r, c] = stack.pop();
-        if (r < 0 || r >= rows || c < 0 || c >= columns) continue;
-        if (visited[r][c] || grid[r][c] !== color) continue;
-        visited[r][c] = true;
-        group.push([r, c]);
-        stack.push([r+1, c], [r-1, c], [r, c+1], [r, c-1]);
+  function canSpawnBall() {
+    return grid[0][Math.floor(GAME_WIDTH / 2 / gridSize)] === null;
+  }
+
+  function updateParticles() {
+    for (let p of particles) p.update(grid);
+  }
+
+  function drawParticles() {
+    for (let p of particles) p.draw(ctx);
+  }
+
+  function checkConnectedGroups() {
+    if (pendingParticles.length > 0) return;
+    let visited = Array.from({ length: rows }, () => Array(columns).fill(false));
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        let color = grid[row][col];
+        if (color === null || visited[row][col]) continue;
+        let group = findConnectedGroup(row, col, color, visited);
+        if (touchesBothEdges(group)) {
+          for (let [r, c] of group) grid[r][c] = null;
+          particles = particles.filter(p => !group.some(([r, c]) => p.row === r && p.col === c));
+          score += group.length * 10;
+        }
       }
-      return group;
     }
+    applyGravity();
+  }
 
-    function touchesBothEdges(group) {
-      let left = false, right = false;
-      for (let [r, c] of group) {
-        if (c === 0) left = true;
-        if (c === columns - 1) right = true;
+  function applyGravity() {
+    for (let col = 0; col < columns; col++) {
+      let writeRow = rows - 1;
+      for (let row = rows - 1; row >= 0; row--) {
+        if (grid[row][col] !== null) {
+          let color = grid[row][col];
+          grid[row][col] = null;
+          grid[writeRow][col] = color;
+          let p = particles.find(pp => pp.col === col && pp.row === row && pp.color === color);
+          if (p) p.row = writeRow;
+          writeRow--;
+        }
       }
-      return left && right;
     }
+  }
 
-    function drawScore() {
+  function findConnectedGroup(row, col, color, visited) {
+    let stack = [[row, col]], group = [];
+    while (stack.length > 0) {
+      let [r, c] = stack.pop();
+      if (r < 0 || r >= rows || c < 0 || c >= columns) continue;
+      if (visited[r][c] || grid[r][c] !== color) continue;
+      visited[r][c] = true;
+      group.push([r, c]);
+      stack.push([r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]);
+    }
+    return group;
+  }
+
+  function touchesBothEdges(group) {
+    let left = false, right = false;
+    for (let [r, c] of group) {
+      if (c === 0) left = true;
+      if (c === columns - 1) right = true;
+    }
+    return left && right;
+  }
+
+  function drawScore() {
+    ctx.fillStyle = "white";
+    ctx.font = "20px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText("Рахунок: " + score, 10, 30);
+  }
+
+  function drawGameOver() {
+    if (gameOver) {
       ctx.fillStyle = "white";
-      ctx.font = "20px Arial";
-      ctx.textAlign = "left";
-      ctx.fillText("Рахунок: " + score, 10, 30);
+      ctx.font = "40px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Гра завершена", GAME_WIDTH / 2, GAME_HEIGHT / 2);
     }
+  }
 
-    function drawGameOver() {
-      if (gameOver) {
-        ctx.fillStyle = "white";
-        ctx.font = "40px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("Гра завершена", GAME_WIDTH / 2, GAME_HEIGHT / 2);
-      }
-    }
+  function gameLoop() {
+    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    ball.update(grid);
+    ball.draw(ctx);
+    releasePendingParticles();
+    updateParticles();
+    checkConnectedGroups();
+    drawParticles();
+    drawScore();
+    drawGameOver();
+    if (!gameOver) requestAnimationFrame(gameLoop);
 
-    function gameLoop() {
-      ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-      ball.update(grid);
-      ball.draw(ctx);
-      releasePendingParticles();
-      updateParticles();
-      checkConnectedGroups();
-      drawParticles();
-      drawScore();
-      drawGameOver();
-      if (!gameOver) requestAnimationFrame(gameLoop);
-    }
-  </script>
+  }
+</script>
 </body>
 </html>
+
