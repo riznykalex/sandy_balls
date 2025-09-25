@@ -14,7 +14,7 @@
       font-family: Arial, sans-serif;
       color: white;
       text-align: center;
-       background: linear-gradient(to bottom, #2c3e50, #000000);
+      background: linear-gradient(to bottom, #2c3e50, #000000);
       height: 100vh;
       overflow: hidden;
     }
@@ -62,33 +62,8 @@
 
     canvas {
       border: 1px solid rgba(255, 255, 255, 0.2);
-
       touch-action: none;
       background-color: transparent;
-    }
-
-#controls {
-  margin-top: 10px;
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-}
-
-.control-btn {
-  font-size: 24px;
-  padding: 12px 16px;
-  background-color: rgba(255, 255, 255, 0.2);
-  border: 1px solid white;
-  border-radius: 8px;
-  color: white;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-
-    .control-btn:active {
-      background-color: rgba(255, 255, 255, 0.4);
     }
   </style>
 </head>
@@ -105,19 +80,11 @@
 
   <!-- 🕹️ Ігровий екран -->
   <div id="gameScreen">
-  
     <div id="canvasContainer">
       <canvas id="gameCanvas"></canvas>
     </div>
-        <div id="controls">
-        <button class="control-btn" id="btnLeft">◀️</button>
-        <button class="control-btn" id="btnDown">⬇️</button>
-        <button class="control-btn" id="btnRight">▶️</button>
-      </div>	
-	</div>
-  
+  </div>
 
-  
 <script>
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
@@ -148,47 +115,28 @@
 
   let control = { left: false, right: false, down: false };
 
-  // 🎮 Віртуальні кнопки
-  const btnLeft = document.getElementById("btnLeft");
-  const btnRight = document.getElementById("btnRight");
-  const btnDown = document.getElementById("btnDown");
-
-  function setControl(btn, dir) {
-    btn.addEventListener("touchstart", () => control[dir] = true);
-    btn.addEventListener("touchend", () => control[dir] = false);
-    btn.addEventListener("mousedown", () => control[dir] = true);
-    btn.addEventListener("mouseup", () => control[dir] = false);
-  }
-
-  setControl(btnLeft, "left");
-  setControl(btnRight, "right");
-  setControl(btnDown, "down");
-
-  // 🧭 Свайпи
-  let touchStartX = null;
-  let touchStartY = null;
-
+  // 📱 Керування дотиком (тап-зони)
   canvas.addEventListener("touchstart", e => {
     const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
+    const x = t.clientX;
+    const y = t.clientY;
+
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+
+    control.left = control.right = control.down = false;
+
+    if (y > screenHeight * 0.75) {
+      control.down = true; // нижня зона
+    } else if (x < screenWidth / 2) {
+      control.left = true; // ліва половина
+    } else {
+      control.right = true; // права половина
+    }
   });
 
-  canvas.addEventListener("touchend", e => {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 30) control.right = true;
-      else if (dx < -30) control.left = true;
-    } else {
-      if (dy > 30) control.down = true;
-    }
-
-    setTimeout(() => {
-      control.left = control.right = control.down = false;
-    }, 150);
+  canvas.addEventListener("touchend", () => {
+    control.left = control.right = control.down = false;
   });
 
   // 🕹️ Перехід між екранами
@@ -432,10 +380,7 @@
     drawScore();
     drawGameOver();
     if (!gameOver) requestAnimationFrame(gameLoop);
-
   }
 </script>
 </body>
 </html>
-
-
