@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -145,6 +146,11 @@
     document.getElementById("gameScreen").style.display = "flex";
     activeColors = colorSets[level];
     ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
+    score = 0;
+    gameOver = false;
+    particles = [];
+    grid = Array.from({ length: rows }, () => Array(columns).fill(null));
+    pendingParticles = [];
     gameLoop();
   }
 
@@ -281,7 +287,7 @@
       }
     } else if (!ball.active && !gameOver) {
       if (canSpawnBall()) ball = new Ball(GAME_WIDTH / 2, 0, getRandomColor(), 50);
-      else gameOver = true;
+      else triggerGameOver();
     }
   }
 
@@ -360,13 +366,51 @@
     ctx.fillText("Рахунок: " + score, 10, 30);
   }
 
+  // --- Game Over ---
+  let gameOverTimer = 0;
+  let explosionParticles = [];
+
+  function triggerGameOver() {
+    gameOver = true;
+    gameOverTimer = 0;
+
+    explosionParticles = particles.map(p => ({
+      x: p.col * gridSize + gridSize / 2,
+      y: p.row * gridSize + gridSize / 2,
+      color: p.color,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6
+    }));
+  }
+
   function drawGameOver() {
-    if (gameOver) {
-      ctx.fillStyle = "white";
-      ctx.font = "40px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("Гра завершена", GAME_WIDTH / 2, GAME_HEIGHT / 2);
+    if (!gameOver) return;
+
+    gameOverTimer++;
+
+    ctx.fillStyle = "white";
+    ctx.font = "40px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Гра завершена", GAME_WIDTH / 2, GAME_HEIGHT / 2);
+
+    if (gameOverTimer > 60) {
+      for (let p of explosionParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, gridSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      }
     }
+
+    if (gameOverTimer > 120) {
+      document.getElementById("gameScreen").style.display = "none";
+      document.getElementById("startScreen").style.display = "flex";
+      return;
+    }
+
+    requestAnimationFrame(drawGameOver);
   }
 
   function gameLoop() {
@@ -378,8 +422,12 @@
     checkConnectedGroups();
     drawParticles();
     drawScore();
-    drawGameOver();
-    if (!gameOver) requestAnimationFrame(gameLoop);
+
+    if (!gameOver) {
+      requestAnimationFrame(gameLoop);
+    } else {
+      drawGameOver();
+    }
   }
 </script>
 </body>
