@@ -15,7 +15,7 @@
       font-family: Arial, sans-serif;
       color: white;
       text-align: center;
-      background: linear-gradient(to bottom, #2c3e50, #000000);
+      background: linear-gradient(to bottom, #0057b8, #ffd700);
       height: 100vh;
       overflow: hidden;
     }
@@ -70,16 +70,17 @@
 </head>
 <body>
 
-  <!-- 🎮 Початковий екран -->
+  <!-- Початковий екран -->
   <div id="startScreen">
     <h1>Піщані кульки</h1>
+    <h3>(заповніть поле одним з кольорів від краю до краю)</h3>
     <p>Оберіть рівень складності:</p>
     <button onclick="startGame(4)">Легкий (4 кольори)</button>
     <button onclick="startGame(5)">Середній (5 кольорів)</button>
     <button onclick="startGame(6)">Складний (6 кольорів)</button>
   </div>
 
-  <!-- 🕹️ Ігровий екран -->
+  <!-- Ігровий екран -->
   <div id="gameScreen">
     <div id="canvasContainer">
       <canvas id="gameCanvas"></canvas>
@@ -116,7 +117,7 @@
 
   let control = { left: false, right: false, down: false };
 
-  // 📱 Керування дотиком (тап-зони)
+  // Керування дотиком (тап-зони)
   canvas.addEventListener("touchstart", e => {
     const t = e.touches[0];
     const x = t.clientX;
@@ -140,7 +141,7 @@
     control.left = control.right = control.down = false;
   });
 
-  // 🕹️ Перехід між екранами
+  // Перехід між екранами
   function startGame(level) {
     document.getElementById("startScreen").style.display = "none";
     document.getElementById("gameScreen").style.display = "flex";
@@ -366,7 +367,7 @@
     ctx.fillText("Рахунок: " + score, 10, 30);
   }
 
-  // --- Game Over ---
+  // Закінчення гри
   let gameOverTimer = 0;
   let explosionParticles = [];
 
