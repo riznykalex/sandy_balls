@@ -199,6 +199,8 @@
 
   // Перехід між екранами
   function startGame(level) {
+    cancelAnimationFrame(gameLoopId);
+    gameLoopId = null;
     document.getElementById("startScreen").style.display = "none";
     document.getElementById("gameScreen").style.display = "flex";
     activeColors = colorSets[level];
@@ -283,26 +285,26 @@
 
     update(grid) {
       if (this.row < rows - 1) {
-        if (grid[this.row + 1][this.col] === null) {
-          grid[this.row][this.col] = null;
-          this.row++;
-          grid[this.row][this.col] = this.color;
-          return;
-        }
-        if (this.col > 0 && grid[this.row + 1][this.col - 1] === null) {
-          grid[this.row][this.col] = null;
-          this.row++;
-          this.col--;
-          grid[this.row][this.col] = this.color;
-          return;
-        }
-        if (this.col < columns - 1 && grid[this.row + 1][this.col + 1] === null) {
-          grid[this.row][this.col] = null;
-          this.row++;
-          this.col++;
-          grid[this.row][this.col] = this.color;
-          return;
-        }
+      if (grid[this.row + 1][this.col] === null) {
+        grid[this.row][this.col] = null;
+        this.row++;
+        grid[this.row][this.col] = this;
+        return;
+      }
+      if (this.col > 0 && grid[this.row + 1][this.col - 1] === null) {
+        grid[this.row][this.col] = null;
+        this.row++;
+        this.col--;
+        grid[this.row][this.col] = this;
+        return;
+      }
+      if (this.col < columns - 1 && grid[this.row + 1][this.col + 1] === null) {
+        grid[this.row][this.col] = null;
+        this.row++;
+        this.col++;
+        grid[this.row][this.col] = this;
+        return;
+      }
       }
     }
 
@@ -336,8 +338,9 @@
       for (let item of batch) {
         for (let row = rows - 1; row >= 0; row--) {
           if (grid[row][item.col] === null) {
-            grid[row][item.col] = item.color;
-            particles.push(new Particle(item.col, row, item.color));
+            let p = new Particle(item.col, row, item.color);
+            grid[row][item.col] = p;
+            particles.push(p);
             break;
           }
         }
@@ -365,12 +368,16 @@
     let visited = Array.from({ length: rows }, () => Array(columns).fill(false));
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        let color = grid[row][col];
-        if (color === null || visited[row][col]) continue;
-        let group = findConnectedGroup(row, col, color, visited);
+        let cell = grid[row][col];
+        if (cell === null || visited[row][col]) continue;
+        let group = findConnectedGroup(row, col, cell.color, visited);
         if (touchesBothEdges(group)) {
-          for (let [r, c] of group) grid[r][c] = null;
-          particles = particles.filter(p => !group.some(([r, c]) => p.row === r && p.col === c));
+          let removed = new Set();
+          for (let [r, c] of group) {
+            removed.add(grid[r][c]);
+            grid[r][c] = null;
+          }
+          particles = particles.filter(p => !removed.has(p));
           score += group.length * 10;
         }
       }
@@ -382,12 +389,11 @@
     for (let col = 0; col < columns; col++) {
       let writeRow = rows - 1;
       for (let row = rows - 1; row >= 0; row--) {
-        if (grid[row][col] !== null) {
-          let color = grid[row][col];
+        let p = grid[row][col];
+        if (p !== null) {
           grid[row][col] = null;
-          grid[writeRow][col] = color;
-          let p = particles.find(pp => pp.col === col && pp.row === row && pp.color === color);
-          if (p) p.row = writeRow;
+          grid[writeRow][col] = p;
+          p.row = writeRow;
           writeRow--;
         }
       }
@@ -399,7 +405,7 @@
     while (stack.length > 0) {
       let [r, c] = stack.pop();
       if (r < 0 || r >= rows || c < 0 || c >= columns) continue;
-      if (visited[r][c] || grid[r][c] !== color) continue;
+      if (visited[r][c] || grid[r][c] === null || grid[r][c].color !== color) continue;
       visited[r][c] = true;
       group.push([r, c]);
       stack.push([r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]);
@@ -425,6 +431,7 @@
 
   // Закінчення гри
   let gameOverTimer = 0;
+  let gameLoopId = null;
   let explosionParticles = [];
 
   function triggerGameOver() {
@@ -467,7 +474,7 @@
       return;
     }
 
-    requestAnimationFrame(drawGameOver);
+    gameLoopId = requestAnimationFrame(drawGameOver);
   }
 
   function gameLoop() {
@@ -481,7 +488,7 @@
     drawScore();
 
     if (!gameOver) {
-      requestAnimationFrame(gameLoop);
+      gameLoopId = requestAnimationFrame(gameLoop);
     } else {
       drawGameOver();
     }
@@ -529,6 +536,7 @@ function spawnStar() {
 
   starLayer.appendChild(star);
   star.addEventListener("animationend", () => star.remove());
+  setTimeout(() => star.remove(), duration + 500);
 }
 
 function startStarLoop() {
